@@ -119,41 +119,64 @@ func main() {
 		Oidenovo:  oidenovo,
 		Pessoa:	pessoa
 	*/
+	log.Println("============ fim da minha primeira aplicação em golang ============")
 
+}
+
+func (c *Contrato) mudarPessoa(id string, novaPessoa string) {
+	log.Println("--> Transação de Submit: ChangeOiPessoa OI1, transfere para um novo dono Val Bandeira")
+	contract := c.contrato
+	_, err := contract.SubmitTransaction("ChangeOiPessoa", id, novaPessoa)
+	if err != nil {
+		log.Fatalf("Falhou em ChangeOiPessoa Transação de Submit: %v", err)
+	}
+}
+func (c *Contrato) existeOi(registrar bool, id string) string {
+	contract := c.contrato
+	var result []byte
+	var err error
+	log.Println("--> Transação Evaluate: ExisteOi, função que retorna um boleano se achou o ativo na ledger")
+
+	if registrar {
+		result, err = contract.SubmitTransaction("ExisteOi", id)
+	} else {
+		result, err = contract.EvaluateTransaction("ExisteOi", id)
+	}
+
+	if err != nil {
+		log.Fatalf("Falhou em ExisteOi Transação Evaluate: %v\n", err)
+	}
+	return string(result)
+}
+
+func (c *Contrato) consultarOi(registrar bool, id string) string {
+
+	log.Println("--> Transação QueryOi, função retorna um ativo com OIID")
+	var result []byte
+	var err error
+	contract := c.contrato
+	if registrar {
+		result, err = contract.SubmitTransaction("QueryOi", id)
+	} else {
+		result, err = contract.EvaluateTransaction("QueryOi", id)
+	}
+
+	if err != nil {
+		log.Fatalf("Falhou em Transação : %v\n", err)
+	}
+	return string(result)
+
+}
+
+//Exemplo "CreateOi", "OI11", "Cheguei otário", "Tô indo fdp", "Que cu", "MarianaArrombada")
+func (c *Contrato) criarOi(id string, saudacao string, despedida string, oidenovo string, pessoa string) {
 	log.Println("--> Transação de Submit: CreateOi, cria ativos com ID(OINUMEROQUALQUER), saudação, despedida, oidenovo, e pessoa")
-	result, err = contract.SubmitTransaction("CreateOi", "OI11", "Cheguei otário", "Tô indo fdp", "Que cu", "MarianaArrombada")
+	contract := c.contrato
+	result, err := contract.SubmitTransaction("CreateOi", id, saudacao, despedida, oidenovo, pessoa)
 	if err != nil {
 		log.Fatalf("Falhou a SUBMIT (altera estado da ledger) transação: %v", err)
 	}
 	log.Println(string(result))
-
-	log.Println("--> Transação Evaluate: QueryOi, função retorna um ativo com OIID")
-	result, err = contract.EvaluateTransaction("QueryOi", "OI6")
-	if err != nil {
-		log.Fatalf("Falhou em Transação Evaluate: %v\n", err)
-	}
-	log.Println(string(result))
-
-	log.Println("--> Transação Evaluate: ExisteOi, função que retorna um boleano se achou o ativo na ledger")
-	result, err = contract.EvaluateTransaction("ExisteOi", "OI1")
-	if err != nil {
-		log.Fatalf("Falhou em ExisteOi Transação Evaluate: %v\n", err)
-	}
-	log.Println(string(result))
-
-	log.Println("--> Transação de Submit: ChangeOiPessoa OI1, transfere para um novo dono Val Bandeira")
-	_, err = contract.SubmitTransaction("ChangeOiPessoa", "OI1", "Val Bandeira")
-	if err != nil {
-		log.Fatalf("Falhou em ChangeOiPessoa Transação de Submit: %v", err)
-	}
-
-	log.Println("--> Transação Evaluate: QueryOi, function returns 'OI1' attributes(não sei pra que porra)")
-	result, err = contract.EvaluateTransaction("QueryOi", "OI1")
-	if err != nil {
-		log.Fatalf("Falhou em QueryOi Transação Evaluate: %v", err)
-	}
-	log.Println(string(result))
-	log.Println("============ fim da minha primeira aplicação em golang ============")
 }
 
 //Método que pega todos os Ois. Necessário dizer se quer registrar ou não a consulta
