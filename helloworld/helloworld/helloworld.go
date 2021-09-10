@@ -11,30 +11,66 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/gateway"
 )
 
-func main() {
-	log.Println("============ minha primeira aplicação em golang ============")
+type Conexao struct {
+	gateway *gateway.Gateway
+}
+type Contrato struct {
+	contrato *gateway.Contract
+}
 
+func (c *Contrato) setContrato(g *gateway.Contract) {
+	c.contrato = g
+}
+
+func setarDiscovery() {
 	err := os.Setenv("DISCOVERY_AS_LOCALHOST", "true")
 	if err != nil {
 		log.Fatalf("Erro em setar DISCOVERY_AS_LOCALHOST como variável de ambiente: %v", err)
 	}
 	fmt.Println("Chegou aqui depois de discovery")
 
-	wallet, err := gateway.NewFileSystemWallet("gateway")
+}
+
+func (c *Conexao) iniciarConexao() *gateway.Contract {
+	setarDiscovery()
+	wallet, err := getWallet()
+	err = credenciarWallet(wallet, err)
+
 	if err != nil {
-		log.Fatalf("Falhou em criar wallet: %v", err)
-	}
-	fmt.Println("Chegou depois do gateway")
-
-	if !wallet.Exists("appUser") {
-		err = populateWallet(wallet)
-		if err != nil {
-			log.Fatalf("Falhou em popular a wallet: %v", err)
-		}
+		log.Fatalf("Falhou em credenciar a Wallet %v", err)
 	}
 
-	fmt.Println("Pegou a wallet")
+	ccpPath := getCaminhoConnectionOrg1Yaml()
+	gw := getGateway(ccpPath, wallet)
+	c.gateway = gw
+	//defer gw.Close()
 
+	network, err := gw.GetNetwork("mychannel")
+	if err != nil {
+		log.Fatalf("Falhou em pegar a network: %v", err)
+	}
+
+	contrato := network.GetContract("helloworld")
+
+	return contrato
+
+}
+func (c *Conexao) fecharConexao() {
+	c.gateway.Close()
+}
+
+func getGateway(ccpPath string, wallet *gateway.Wallet) *gateway.Gateway {
+	gw, err := gateway.Connect(
+		gateway.WithConfig(config.FromFile(filepath.Clean(ccpPath))),
+		gateway.WithIdentity(wallet, "appUser"),
+	)
+	if err != nil {
+		log.Fatalf("Falhou em conectar com o gateway: %v", err)
+	}
+	return gw
+}
+
+func getCaminhoConnectionOrg1Yaml() string {
 	ccpPath := filepath.Join(
 		"..",
 		"..",
@@ -44,41 +80,39 @@ func main() {
 		"org1.example.com",
 		"connection-org1.yaml",
 	)
+	return ccpPath
+}
 
-	gw, err := gateway.Connect(
-		gateway.WithConfig(config.FromFile(filepath.Clean(ccpPath))),
-		gateway.WithIdentity(wallet, "appUser"),
-	)
-	if err != nil {
-		log.Fatalf("Falhou em conectar com o gateway: %v", err)
-	}
-	defer gw.Close()
-
-	fmt.Println("Antes de pegar o canal")
-
-	network, err := gw.GetNetwork("mychannel")
-	if err != nil {
-		log.Fatalf("Falhou em pegar a network: %v", err)
+func credenciarWallet(wallet *gateway.Wallet, err error) error {
+	if !wallet.Exists("appUser") {
+		err = populateWallet(wallet)
+		if err != nil {
+			log.Fatalf("Falhou em colocar credenciais na wallet: %v", err)
+		}
 	}
 
-	fmt.Println("Depois de pegar o canal")
+	fmt.Println("Pegou a wallet")
+	return err
+}
 
-	contract := network.GetContract("helloworld")
-
-	log.Println("--> Transação de Submit: InitLedger, função cria o conjunto inicial de ativos no razão")
-	result, err := contract.SubmitTransaction("InitLedger")
+func getWallet() (*gateway.Wallet, error) {
+	wallet, err := gateway.NewFileSystemWallet("gateway")
 	if err != nil {
-
-		log.Fatalf("Falhou em InitLedger SUBMIT (altera estado da ledger) %v", err)
+		log.Fatalf("Falhou em criar wallet: %v", err)
 	}
-	log.Println(string(result))
+	fmt.Println("Chegou depois do gateway")
+	return wallet, err
+}
 
-	log.Println("--> Transação Evaluate: QueryAllOis, função que retorna todos os ativos na ledger")
-	result, err = contract.EvaluateTransaction("QueryAllOis")
-	if err != nil {
-		log.Fatalf("Falhou a EVALUATE (consulta sem alterar estado da ledger) transação: %v", err)
-	}
-	log.Println(string(result))
+func main() {
+	log.Println("============ minha primeira aplicação em golang ============")
+
+	var conexao Conexao
+	var contrato Contrato
+	contrato.setContrato(conexao.iniciarConexao())
+	defer conexao.fecharConexao()
+	contrato.initLedger()
+
 	/*
 		Saudacao:  saudacao,
 		Despedida: despedida,
@@ -120,6 +154,34 @@ func main() {
 	}
 	log.Println(string(result))
 	log.Println("============ fim da minha primeira aplicação em golang ============")
+}
+
+//Método que pega todos os Ois. Necessário dizer se quer registrar ou não a consulta
+func (c *Contrato) getTodosOis(registrar bool) string {
+	contract := c.contrato
+	log.Println("--> Transação getTodosOis, função que retorna todos os ativos na ledger")
+	var result []byte
+	var err error
+	if registrar {
+		result, err = contract.SubmitTransaction("QueryAllOis")
+	} else {
+		result, err = contract.EvaluateTransaction("QueryAllOis")
+	}
+
+	if err != nil {
+		log.Fatalf("Falhou a getTodosOis transação: %v", err)
+	}
+	return string(result)
+}
+
+func (c *Contrato) initLedger() {
+	contract := c.contrato
+	log.Println("--> Transação de Submit: InitLedger, função cria o conjunto inicial de ativos no razão")
+	_, err := contract.SubmitTransaction("InitLedger")
+	if err != nil {
+
+		log.Fatalf("Falhou em InitLedger SUBMIT (altera estado da ledger) %v", err)
+	}
 }
 
 func populateWallet(wallet *gateway.Wallet) error {
